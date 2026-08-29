@@ -47,6 +47,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from libs.observability import add_security_headers, instrument_metrics, instrument_tracing
+
+instrument_metrics(app, settings.service_name)
+add_security_headers(app)
+instrument_tracing(app, settings.service_name)
+
 
 @app.middleware("http")
 async def correlation_id_middleware(request: Request, call_next):
