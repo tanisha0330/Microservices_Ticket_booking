@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 from app.config import get_settings
 from app.database import get_db
 from app.models import Event, EventSeatPrice, Seat, Section, Venue
+from libs.security import internal_headers
 from app.schemas import (
     EventDetailResponse,
     EventResponse,
@@ -46,7 +47,7 @@ async def _get_locked_seat_ids(event_id: uuid.UUID) -> set[str]:
     """
     url = f"{settings.booking_service_url}/internal/events/{event_id}/locked-seats"
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, headers=internal_headers()) as client:
             resp = await client.get(url)
             if resp.status_code == 200:
                 data = resp.json()

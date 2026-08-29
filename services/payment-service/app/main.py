@@ -47,10 +47,12 @@ app = FastAPI(
 )
 
 from libs.observability import add_security_headers, instrument_metrics, instrument_tracing
+from libs.security import require_internal_secret
 
 instrument_metrics(app, settings.service_name)
 add_security_headers(app)
 instrument_tracing(app, settings.service_name)
+require_internal_secret(app)
 
 
 # ---------------------------------------------------------------------------

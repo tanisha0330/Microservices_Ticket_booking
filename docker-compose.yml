@@ -91,6 +91,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       KAFKA_BROKERS: redpanda:29092
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -110,6 +111,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       KAFKA_BROKERS: redpanda:29092
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -156,6 +158,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_users
@@ -172,6 +175,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_catalog
@@ -193,6 +197,7 @@ services:
       redpanda:
         condition: service_started
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_booking
@@ -213,6 +218,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_payment
@@ -232,6 +238,7 @@ services:
       - payment-service
       - redis
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       REDIS_URL: redis://redis:6379
       USER_SERVICE_URL: http://user-service:8000
       CATALOG_SERVICE_URL: http://catalog-service:8000
@@ -251,6 +258,7 @@ services:
       rag-postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: rag-postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_rag
@@ -267,6 +275,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_guardrail
@@ -283,6 +292,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_eval
@@ -299,6 +309,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_travel_planner
@@ -316,6 +327,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_support_agent
@@ -338,6 +350,7 @@ services:
       redis:
         condition: service_healthy
     environment:
+      INTERNAL_SHARED_SECRET: dev-internal-secret-change-me
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_agent_gateway

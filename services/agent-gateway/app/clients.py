@@ -9,6 +9,7 @@ import structlog
 import httpx
 
 from app.config import get_settings
+from libs.security import internal_headers
 
 log = structlog.get_logger()
 settings = get_settings()
@@ -22,7 +23,7 @@ async def check_guardrail_input(text: str) -> dict:
     """
     url = f"{settings.guardrail_service_url}/guardrails/check-input"
     try:
-        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds, headers=internal_headers()) as client:
             resp = await client.post(url, json={"text": text})
             resp.raise_for_status()
             return resp.json()
@@ -34,7 +35,7 @@ async def check_guardrail_input(text: str) -> dict:
 async def check_guardrail_output(text: str, context_chunks: list[str] | None = None) -> dict:
     url = f"{settings.guardrail_service_url}/guardrails/check-output"
     try:
-        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds, headers=internal_headers()) as client:
             resp = await client.post(
                 url, json={"text": text, "context_chunks": context_chunks or []}
             )
@@ -48,7 +49,7 @@ async def check_guardrail_output(text: str, context_chunks: list[str] | None = N
 async def call_travel_planner(conversation_id: str, user_id: str, message: str) -> dict:
     url = f"{settings.travel_planner_url}/plan"
     try:
-        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds, headers=internal_headers()) as client:
             resp = await client.post(
                 url,
                 json={"conversation_id": conversation_id, "user_id": user_id, "message": message},
@@ -65,7 +66,7 @@ async def call_support_agent(
 ) -> dict:
     url = f"{settings.support_agent_url}/handle"
     try:
-        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds, headers=internal_headers()) as client:
             resp = await client.post(
                 url,
                 json={
@@ -86,7 +87,7 @@ async def call_support_agent(
 async def rag_search(query: str, top_k: int = 3) -> list[dict]:
     url = f"{settings.rag_service_url}/search"
     try:
-        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds, headers=internal_headers()) as client:
             resp = await client.post(url, json={"query": query, "top_k": top_k})
             resp.raise_for_status()
             return resp.json().get("results", [])
@@ -99,7 +100,7 @@ async def send_trace(payload: dict) -> None:
     """Fire-and-forget call to the Eval Service. Never raises."""
     url = f"{settings.eval_service_url}/traces"
     try:
-        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds) as client:
+        async with httpx.AsyncClient(timeout=settings.downstream_timeout_seconds, headers=internal_headers()) as client:
             resp = await client.post(url, json=payload)
             resp.raise_for_status()
     except Exception as exc:

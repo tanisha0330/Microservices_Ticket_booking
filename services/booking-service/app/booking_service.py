@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import get_settings
+from libs.security import internal_headers
 from app.lock_manager import LockManager
 from app.models import Booking, BookingSeat, OutboxEvent, PaymentAttempt
 from app.schemas import ConfirmBookingRequest, LockSeatsRequest
@@ -89,7 +90,7 @@ async def _fetch_seat_prices(
     seat_ids: List[uuid.UUID],
 ) -> dict[uuid.UUID, Decimal]:
     """Batch-fetch seat prices from the catalog service."""
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(headers=internal_headers()) as client:
         prices: dict[uuid.UUID, Decimal] = {}
         for seat_id in seat_ids:
             prices[seat_id] = await _get_seat_price(client, event_id, seat_id)
@@ -340,7 +341,7 @@ async def confirm_booking(
     payment_status = "FAILED"
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, headers=internal_headers()) as client:
             # Step 1: Create payment intent
             create_resp = await client.post(
                 f"{settings.payment_service_url}/payments/create-intent",

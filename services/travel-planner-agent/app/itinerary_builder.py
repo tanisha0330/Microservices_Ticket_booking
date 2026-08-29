@@ -9,6 +9,7 @@ import httpx
 import structlog
 
 from app import mock_apis
+from libs.security import internal_headers
 
 log = structlog.get_logger()
 
@@ -19,7 +20,7 @@ async def fetch_rag_snippet(rag_service_url: str, destination: str) -> str | Non
     """Best-effort call to the RAG service. Returns None (never raises) if
     the service is unreachable — graceful degradation per spec."""
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=5.0, headers=internal_headers()) as client:
             resp = await client.post(
                 f"{rag_service_url}/search",
                 json={"query": f"{destination} travel", "category": "travel", "top_k": 3},

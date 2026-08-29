@@ -10,6 +10,8 @@ import httpx
 from fastapi import Request
 from fastapi.responses import Response
 
+from libs.security import internal_headers
+
 
 async def proxy_request(
     request: Request,
@@ -35,6 +37,7 @@ async def proxy_request(
     headers.pop("host", None)
     headers.pop("content-length", None)  # let httpx recalculate
 
+    headers.update(internal_headers())
     if extra_headers:
         headers.update(extra_headers)
 
