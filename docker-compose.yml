@@ -1,0 +1,115 @@
+services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.7
+    container_name: redpanda
+    command:
+      - redpanda
+      - start
+      - --smp=1
+      - --overprovisioned
+      - --node-id=0
+      - --kafka-addr=PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --pandaproxy-addr=0.0.0.0:8082
+      - --advertise-pandaproxy-addr=localhost:8082
+    ports:
+      - "9092:9092"
+      - "8082:8082"
+      - "9644:9644"
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:v2.7.2
+    container_name: redpanda-console
+    depends_on:
+      - redpanda
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+    ports:
+      - "8080:8080"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ticketflow-postgres
+    environment:
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow123
+      POSTGRES_DB: ticketflow
+    ports:
+      - "5440:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/init-multi-db.sql:/docker-entrypoint-initdb.d/01-init-multi-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketflow"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  notification-service:
+    build: ./services/notification-service
+    container_name: notification-service
+    restart: on-failure
+    depends_on:
+      redpanda:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ticketflow_notification
+    ports:
+      - "8005:8000"
+
+  analytics-service:
+    build: ./services/analytics-service
+    container_name: analytics-service
+    restart: on-failure
+    depends_on:
+      redpanda:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKERS: redpanda:29092
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ticketflow_analytics
+    ports:
+      - "8006:8000"
+
+  redis:
+    image: redis:7-alpine
+    container_name: ticketflow-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+  rag-postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ticketflow-rag-postgres
+    environment:
+      POSTGRES_USER: ticketflow
+      POSTGRES_PASSWORD: ticketflow123
+      POSTGRES_DB: ticketflow_rag
+    ports:
+      - "5434:5432"
+    volumes:
+      - rag_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ticketflow"]
+      interval: 2s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  redpanda_data:
+  postgres_data:
+  rag_postgres_data:

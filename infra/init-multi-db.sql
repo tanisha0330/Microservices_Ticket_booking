@@ -1,0 +1,7 @@
+CREATE DATABASE ticketflow_notification;
+CREATE DATABASE ticketflow_analytics;
+CREATE DATABASE ticketflow_agent_gateway;
+CREATE DATABASE ticketflow_travel_planner;
+CREATE DATABASE ticketflow_support_agent;
+CREATE DATABASE ticketflow_guardrail;
+CREATE DATABASE ticketflow_eval;
