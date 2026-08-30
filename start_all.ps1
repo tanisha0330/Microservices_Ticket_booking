@@ -20,6 +20,7 @@ if (-not (Get-Process redis-server -ErrorAction SilentlyContinue)) {
 }
 
 $env:PYTHONPATH = "X:\ticket-booking\ticketflow"
+$env:INTERNAL_SHARED_SECRET = "dev-internal-secret-change-me"
 
 # Start each service in a new terminal
 Write-Host ""

@@ -19,6 +19,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
+from libs.security import internal_headers
 
 # ---------------------------------------------------------------------------
 # SQLite test engine
@@ -86,7 +87,9 @@ async def client(test_db_engine) -> AsyncGenerator[AsyncClient, None]:
 
     # Bypass the lifespan (init_db) to avoid touching the real Postgres
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=internal_headers()
+    ) as ac:
         yield ac
 
     app.dependency_overrides.clear()

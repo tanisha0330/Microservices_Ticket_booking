@@ -7,6 +7,7 @@ Write-Host "  TicketFlow - Starting Phase 3 Services  " -ForegroundColor Cyan
 Write-Host "==========================================" -ForegroundColor Cyan
 
 $env:PYTHONPATH = "X:\ticket-booking\ticketflow"
+$env:INTERNAL_SHARED_SECRET = "dev-internal-secret-change-me"
 # ponytail: a native PostgreSQL 17 Windows service squats on host port 5433,
 # shadowing the docker-compose "postgres" container's old port mapping for
 # ALL localhost connections. Moved that container to host port 5440 instead

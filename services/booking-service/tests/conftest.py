@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import (
 from app.config import get_settings
 from app.database import Base, get_db
 from app.main import app
+from libs.security import internal_headers
 
 settings = get_settings()
 
@@ -88,7 +89,9 @@ async def client(db_session: AsyncSession, fake_redis) -> AsyncGenerator[AsyncCl
     app.state.redis = fake_redis
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=internal_headers()
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()
 
