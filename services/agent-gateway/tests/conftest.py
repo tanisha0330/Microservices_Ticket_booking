@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import (
 from app.config import get_settings
 from app.database import Base, get_db
 from app.main import app
+from libs.llm.groq_client import FakeGroqClient
 
 settings = get_settings()
 
@@ -73,8 +74,19 @@ async def fake_redis():
 
 
 @pytest_asyncio.fixture()
-async def client(db_session: AsyncSession, fake_redis) -> AsyncGenerator[AsyncClient, None]:
-    """HTTP client with DB + Redis overridden with fast, in-process fakes."""
+async def fake_llm() -> FakeGroqClient:
+    """No default_tool/tool_responses configured -> complete_with_tool() raises
+    LLMError -> classify_llm() falls back to the regex heuristic. This keeps
+    every pre-existing keyword-based test passing unchanged; tests that want
+    to exercise the real tool-use path set `.default_tool` / `.tool_responses`
+    themselves before making the request."""
+    return FakeGroqClient()
+
+
+@pytest_asyncio.fixture()
+async def client(db_session: AsyncSession, fake_redis, fake_llm) -> AsyncGenerator[AsyncClient, None]:
+    """HTTP client with DB + Redis + LLM overridden with fast, in-process fakes.
+    The real GroqClient must never be hit in tests."""
 
     async def _override_get_db():
         try:
@@ -86,6 +98,7 @@ async def client(db_session: AsyncSession, fake_redis) -> AsyncGenerator[AsyncCl
 
     app.dependency_overrides[get_db] = _override_get_db
     app.state.redis = fake_redis
+    app.state.llm_client = fake_llm
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

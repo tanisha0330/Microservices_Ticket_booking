@@ -32,7 +32,7 @@ async def handle(body: HandleRequest, request: Request, db: AsyncSession = Depen
 
     try:
         if body.intent == "REFUND_REQUEST":
-            return await _handle_refund_request(db, body, booking_id)
+            return await _handle_refund_request(db, body, booking_id, request.app.state.llm_client)
         return await _handle_booking_inquiry(db, body, booking_id)
     except tools.DownstreamError as exc:
         ticket = await tools.escalate_to_human(
@@ -48,7 +48,9 @@ async def handle(body: HandleRequest, request: Request, db: AsyncSession = Depen
         )
 
 
-async def _handle_refund_request(db: AsyncSession, body: HandleRequest, booking_id: str | None) -> HandleResponse:
+async def _handle_refund_request(
+    db: AsyncSession, body: HandleRequest, booking_id: str | None, llm_client=None
+) -> HandleResponse:
     if booking_id is None:
         return HandleResponse(
             response_text="I can help with that refund — could you share your booking ID?",
@@ -76,18 +78,9 @@ async def _handle_refund_request(db: AsyncSession, body: HandleRequest, booking_
         priority="MEDIUM",
     )
 
-    parts = []
-    if result["success"]:
-        parts.append(
-            f"Your refund of {result['eligible_amount']} has been processed "
-            f"({eligibility['reason']})."
-        )
-    else:
-        parts.append(f"Your refund could not be processed: {result['reason']}.")
-    if result.get("discrepancy_note"):
-        parts.append(result["discrepancy_note"])
+    response_text = await tools.generate_refund_message(llm_client, eligibility, result)
 
-    return HandleResponse(response_text=" ".join(parts), ticket_id=str(ticket.id), escalated=False)
+    return HandleResponse(response_text=response_text, ticket_id=str(ticket.id), escalated=False)
 
 
 async def _handle_booking_inquiry(db: AsyncSession, body: HandleRequest, booking_id: str | None) -> HandleResponse:

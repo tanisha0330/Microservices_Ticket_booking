@@ -17,7 +17,9 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.database import Base, get_db
+from app.llm import get_llm_client
 from app.main import app
+from libs.llm.groq_client import FakeGroqClient
 from libs.security import internal_headers
 
 
@@ -59,8 +61,14 @@ async def db_session(test_engine, test_session_factory) -> AsyncGenerator[AsyncS
             await conn.rollback()
 
 
+@pytest.fixture()
+def fake_llm() -> FakeGroqClient:
+    """Never hits the real Groq API — used for every test via dependency override."""
+    return FakeGroqClient(default_text="Here's your itinerary: a great trip awaits.")
+
+
 @pytest_asyncio.fixture()
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def client(db_session: AsyncSession, fake_llm: FakeGroqClient) -> AsyncGenerator[AsyncClient, None]:
     """HTTP client with DB overridden with a fast, in-process SQLite session.
 
     Uses the *same* session for the whole test (not a fresh one per request)
@@ -76,6 +84,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             raise
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_llm_client] = lambda: fake_llm
 
     transport = ASGITransport(app=app)
     async with AsyncClient(

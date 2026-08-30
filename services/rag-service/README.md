@@ -34,8 +34,15 @@ There are no LLM/embedding API keys in this project. `app/embeddings.py`
 hashes each chunk's text (SHA-256) and uses it to seed a PRNG that produces a
 deterministic, L2-normalized 1536-dim vector. Same text always embeds to the
 same vector, which keeps ingestion/search testable, but **similar text does
-not embed to similar vectors** — it's a hash, not a real embedding, so search
-relevance is not meaningful until a real embedding API is wired in.
+not embed to similar vectors** — it's a hash, not a real embedding, so
+retrieval order out of `search_chunks` on its own is not meaningful.
+
+To compensate, `/search` runs a real Groq LLM (`openai/gpt-oss-20b`, via
+`libs/llm/groq_client.py`) as a **relevance re-ranking pass on top of** the
+mock-retrieved top-K — genuine LLM judgment reorders the candidates the mock
+step already picked, it does not replace mock retrieval itself. On a Groq
+error/timeout the original mock order is returned unchanged (see
+`app/rag.py::rerank_chunks`).
 
 ## Tests
 

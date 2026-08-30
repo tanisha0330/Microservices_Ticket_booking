@@ -54,7 +54,9 @@ async def chat(
         log.warning("rate_limited", user_id=str(user_id))
         raise _rate_limited_error()
 
-    result = await handle_chat(db, user_id, bearer_token, body.message, body.conversation_id)
+    result = await handle_chat(
+        db, user_id, bearer_token, body.message, body.conversation_id, request.app.state.llm_client
+    )
     return ChatResponse(**result)
 
 

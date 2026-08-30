@@ -4,6 +4,7 @@ tools.py
 The support agent's tool functions. Each is a plain async function so it
 can be unit tested directly, independent of the /handle routing layer.
 """
+import json
 from datetime import datetime, timezone
 
 import httpx
@@ -14,9 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import clients
 from app.models import RefundRequest, SupportTicket
 from app.rules_engine import RefundRulesEngine
+from libs.llm.groq_client import LLMError
 
 log = structlog.get_logger()
 rules_engine = RefundRulesEngine()
+
+_REFUND_MESSAGE_SYSTEM_PROMPT = (
+    "You are a professional, empathetic customer support agent for TicketFlow, "
+    "a ticket-booking platform. You will be given a JSON refund decision that has "
+    "ALREADY been made by a deterministic rules engine — approved/denied, the exact "
+    "dollar amount, and the policy reason. Write a short (2-4 sentence) customer-facing "
+    "message explaining this decision. Do not invent, recompute, or alter the amount or "
+    "the decision — state them exactly as given. If a discrepancy_note is present, "
+    "incorporate it naturally. Do not add disclaimers about being an AI."
+)
 
 
 def _parse_dt(value: str) -> datetime:
@@ -200,6 +212,53 @@ async def create_support_ticket(
     db.add(ticket)
     await db.flush()
     return ticket
+
+
+def _template_refund_message(eligibility: dict, result: dict) -> str:
+    """Original deterministic template — used as the fallback text when the
+    LLM call fails, and as the LLM's only source of truth for the numbers."""
+    parts = []
+    if result["success"]:
+        parts.append(
+            f"Your refund of {result['eligible_amount']} has been processed "
+            f"({eligibility['reason']})."
+        )
+    else:
+        parts.append(f"Your refund could not be processed: {result['reason']}.")
+    if result.get("discrepancy_note"):
+        parts.append(result["discrepancy_note"])
+    return " ".join(parts)
+
+
+async def generate_refund_message(llm_client, eligibility: dict, result: dict) -> str:
+    """
+    Builds the customer-facing refund message. The refund AMOUNT and
+    approved/denied decision come only from `eligibility`/`result` (the
+    RefundRulesEngine's output, already computed) — the LLM is given those
+    numbers as fixed facts and only asked to phrase them, never to compute
+    or alter them. Falls back to the deterministic template on any LLM
+    error/timeout so a Groq hiccup never blocks a refund response.
+    """
+    template = _template_refund_message(eligibility, result)
+    if llm_client is None:
+        return template
+
+    decision = {
+        "approved": result["success"],
+        "amount": result.get("eligible_amount", 0),
+        "reason": result.get("reason") or eligibility["reason"],
+        "discrepancy_note": result.get("discrepancy_note"),
+    }
+    try:
+        text = await llm_client.complete(
+            system=_REFUND_MESSAGE_SYSTEM_PROMPT,
+            user=json.dumps(decision),
+            max_tokens=250,
+        )
+        return text.strip()
+    except LLMError as exc:
+        log.warning("refund_message_llm_failed_fallback_to_template", error=str(exc))
+        return template
 
 
 async def escalate_to_human(

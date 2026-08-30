@@ -15,6 +15,7 @@ from app.config import get_settings
 from app.constraint_extractor import ConstraintExtractor
 from app.database import get_db
 from app.itinerary_builder import build_itinerary
+from app.llm import get_llm_client
 from app.models import Itinerary, ItineraryItem
 from app.schemas import PlanRequest, PlanResponse
 
@@ -39,7 +40,7 @@ def _missing_fields_message(missing: list[str]) -> str:
 
 
 @router.post("/plan", response_model=PlanResponse)
-async def plan(body: PlanRequest, db: AsyncSession = Depends(get_db)):
+async def plan(body: PlanRequest, db: AsyncSession = Depends(get_db), llm_client=Depends(get_llm_client)):
     settings = get_settings()
 
     result = await db.execute(
@@ -84,6 +85,7 @@ async def plan(body: PlanRequest, db: AsyncSession = Depends(get_db)):
         interests=merged.get("interests"),
         dietary_restrictions=merged.get("dietary_restrictions"),
         rag_service_url=settings.rag_service_url,
+        llm_client=llm_client,
     )
 
     # Replace any previously persisted items for this itinerary (e.g. a

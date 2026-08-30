@@ -12,6 +12,7 @@ from app.database import get_db, init_db
 from app.models import Document
 from app.rag import ingest_document, search_chunks
 from app.schemas import DocumentIn, DocumentOut, SearchIn, SearchOut
+from libs.llm.groq_client import GroqClient
 
 # Configure structlog for JSON output
 structlog.configure(
@@ -35,6 +36,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("rag_service_startup", service=settings.service_name)
+    app.state.llm_client = GroqClient()
     await init_db()
 
     from app.database import async_session_factory
@@ -161,8 +163,14 @@ async def create_document(body: DocumentIn, db: AsyncSession = Depends(get_db)):
 
 
 @app.post("/search", response_model=SearchOut)
-async def search(body: SearchIn, db: AsyncSession = Depends(get_db)):
-    results = await search_chunks(db, query=body.query, category=body.category, top_k=body.top_k)
+async def search(body: SearchIn, request: Request, db: AsyncSession = Depends(get_db)):
+    results = await search_chunks(
+        db,
+        query=body.query,
+        category=body.category,
+        top_k=body.top_k,
+        llm_client=request.app.state.llm_client,
+    )
     return SearchOut(results=results)
 
 

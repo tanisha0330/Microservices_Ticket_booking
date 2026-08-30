@@ -5,6 +5,7 @@ import httpx
 import pytest
 
 from app import tools
+from libs.llm.groq_client import FakeGroqClient, LLMError
 
 pytestmark = pytest.mark.asyncio
 
@@ -106,3 +107,34 @@ async def test_escalate_to_human_creates_ticket_when_none_exists(db_session):
     ticket = await tools.escalate_to_human(db_session, "conv-1", "no policy match", user_id="u1")
     assert ticket.status == "ESCALATED"
     assert ticket.conversation_id == "conv-1"
+
+
+ELIGIBILITY = {"refund_percentage": 100, "reason": "Full refund window", "rule": "more_than_7d",
+               "total_amount": 100.0, "eligible_amount": 100.0, "currency": "USD"}
+APPROVED_RESULT = {"success": True, "status": "PROCESSED", "eligible_amount": 100.0,
+                    "reason": "Full refund window", "discrepancy_note": None}
+DENIED_RESULT = {"success": False, "status": "DENIED", "eligible_amount": 0,
+                  "reason": "Too close to event date", "discrepancy_note": None}
+
+
+async def test_generate_refund_message_uses_llm_text_when_available():
+    llm = FakeGroqClient(default_text="Your $100.0 refund is on its way!")
+    text = await tools.generate_refund_message(llm, ELIGIBILITY, APPROVED_RESULT)
+    assert text == "Your $100.0 refund is on its way!"
+    # The amount fed to the LLM is the rules-engine amount, not invented.
+    assert "100.0" in llm.calls[0]["user"]
+
+
+async def test_generate_refund_message_falls_back_to_template_on_llm_error():
+    class RaisingLLM:
+        async def complete(self, **kwargs):
+            raise LLMError("boom")
+
+    text = await tools.generate_refund_message(RaisingLLM(), ELIGIBILITY, DENIED_RESULT)
+    assert text == tools._template_refund_message(ELIGIBILITY, DENIED_RESULT)
+    assert "Too close to event date" in text
+
+
+async def test_generate_refund_message_no_client_uses_template():
+    text = await tools.generate_refund_message(None, ELIGIBILITY, APPROVED_RESULT)
+    assert text == "Your refund of 100.0 has been processed (Full refund window)."

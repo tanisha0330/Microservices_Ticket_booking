@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.database import init_db
 from app.routes import handle
+from libs.llm.groq_client import GroqClient
 
 # Configure structlog for JSON output
 structlog.configure(
@@ -32,6 +33,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     log.info("support_agent_startup", service=settings.service_name)
     await init_db()
+    app.state.llm_client = GroqClient()
     log.info("database_initialised")
     yield
     log.info("support_agent_shutdown", service=settings.service_name)

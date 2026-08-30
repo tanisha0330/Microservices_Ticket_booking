@@ -12,7 +12,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import clients
-from app.intent import classify
+from app.intent import classify_llm
 from app.models import AgentDecision, Conversation, Message
 
 log = structlog.get_logger()
@@ -68,7 +68,7 @@ async def _save_message(db: AsyncSession, conversation_id, sender: str, content:
     return msg
 
 
-async def handle_chat(db: AsyncSession, user_id: uuid.UUID, bearer_token: str, message: str, conversation_id) -> dict:
+async def handle_chat(db: AsyncSession, user_id: uuid.UUID, bearer_token: str, message: str, conversation_id, llm_client) -> dict:
     start = time.monotonic()
     conv = await _get_or_create_conversation(db, user_id, conversation_id)
 
@@ -105,7 +105,7 @@ async def handle_chat(db: AsyncSession, user_id: uuid.UUID, bearer_token: str, m
         }
 
     # --- Step 3: intent classification ---
-    classification = classify(message)
+    classification = await classify_llm(llm_client, message)
     intent = classification["intent"]
 
     # ponytail: classification is per-message with no conversation memory.

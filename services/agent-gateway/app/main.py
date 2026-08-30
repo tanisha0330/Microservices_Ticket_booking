@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.database import init_db
 from app.routes import agent
+from libs.llm.groq_client import GroqClient
 
 # Configure structlog for JSON output
 structlog.configure(
@@ -34,6 +35,7 @@ async def lifespan(app: FastAPI):
     log.info("agent_gateway_startup", service=settings.service_name)
     await init_db()
     app.state.redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+    app.state.llm_client = GroqClient()
     yield
     await app.state.redis.aclose()
     log.info("agent_gateway_shutdown", service=settings.service_name)

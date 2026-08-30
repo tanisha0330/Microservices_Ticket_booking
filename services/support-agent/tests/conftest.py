@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.database import Base, get_db
 from app.main import app
+from libs.llm.groq_client import FakeGroqClient
 from libs.security import internal_headers
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -60,7 +61,15 @@ async def db_session(test_engine, test_session_factory) -> AsyncGenerator[AsyncS
 
 
 @pytest_asyncio.fixture()
-async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
+async def fake_llm() -> FakeGroqClient:
+    """Default text -> a stable string so tests that don't care about exact
+    wording still get a deterministic response. The real GroqClient must
+    never be hit in tests."""
+    return FakeGroqClient(default_text="Your refund has been processed.")
+
+
+@pytest_asyncio.fixture()
+async def client(db_session: AsyncSession, fake_llm: FakeGroqClient) -> AsyncGenerator[AsyncClient, None]:
     async def _override_get_db():
         try:
             yield db_session
@@ -70,6 +79,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
             raise
 
     app.dependency_overrides[get_db] = _override_get_db
+    app.state.llm_client = fake_llm
 
     transport = ASGITransport(app=app)
     async with AsyncClient(

@@ -1,14 +1,18 @@
 """
-Template-based itinerary generation (no LLM). Assembles a day-by-day plan
-from the mock external APIs plus a best-effort RAG lookup for destination
-knowledge/citations.
+Day-by-day itinerary assembly. Structure/costs/sources still come
+deterministically from the mock external APIs plus a best-effort RAG lookup
+(so DB persistence and the response shape stay stable and grounded), but the
+narrative the user actually reads (`response_text`) is written by a real
+Groq LLM call instead of string-templating.
 """
+import json
 from datetime import date, timedelta
 
 import httpx
 import structlog
 
 from app import mock_apis
+from libs.llm.groq_client import LLMError
 from libs.security import internal_headers
 
 log = structlog.get_logger()
@@ -161,6 +165,42 @@ def _build_day(destination: str, day_str: str, day_number: int, interests: list[
     return items, day_summary
 
 
+NARRATIVE_SYSTEM_PROMPT = (
+    "You are TicketFlow's travel planning assistant. You will be given a "
+    "destination, a day-by-day list of already-booked activities/restaurants/"
+    "events (with weather and costs), and the traveler's interests and "
+    "dietary restrictions. Write a warm, concise itinerary narrative for the "
+    "traveler. Use ONLY the facts given to you — do not invent activities, "
+    "prices, or places that aren't listed. Mention dietary restrictions if "
+    "any are given. Keep it readable: a short intro line, then one section "
+    "per day."
+)
+
+
+async def _generate_narrative(
+    llm_client,
+    destination: str,
+    day_summaries: list[dict],
+    dietary_restrictions: list[str] | None,
+    rag_snippet: str | None,
+) -> str:
+    payload = {
+        "destination": destination,
+        "days": day_summaries,
+        "dietary_restrictions": dietary_restrictions or [],
+        "destination_notes": rag_snippet,
+    }
+    try:
+        return await llm_client.complete(
+            system=NARRATIVE_SYSTEM_PROMPT,
+            user=json.dumps(payload, default=str),
+            max_tokens=700,
+        )
+    except LLMError as exc:
+        log.warning("llm_narrative_failed", error=str(exc))
+        return f"Here's your {len(day_summaries)}-day itinerary for {destination}."
+
+
 async def build_itinerary(
     destination: str,
     start_date: str,
@@ -168,6 +208,7 @@ async def build_itinerary(
     interests: list[str] | None,
     dietary_restrictions: list[str] | None,
     rag_service_url: str,
+    llm_client,
 ) -> tuple[list[dict], list[dict], str]:
     """Returns (item_dicts_for_persistence, day_summaries_for_response, response_text)."""
     interests = interests or []
@@ -182,14 +223,8 @@ async def build_itinerary(
 
     rag_snippet = await fetch_rag_snippet(rag_service_url, destination)
 
-    lines = [f"Here's your {len(day_strs)}-day itinerary for {destination}:"]
-    if rag_snippet:
-        lines.append(f"\n{rag_snippet} (source: RAG destination knowledge)")
-    for summary in day_summaries:
-        lines.append(f"\nDay {summary['day_number']} ({summary['date']}) — {summary['weather']['condition']}, {summary['weather']['temperature']}C:")
-        for item in summary["items"]:
-            lines.append(f"  {item['time_slot']}: {item['title']} (~${item['cost_estimate']}, source: {item['source_reference']})")
-    if dietary_restrictions:
-        lines.append(f"\nDietary restrictions noted: {', '.join(dietary_restrictions)}.")
+    response_text = await _generate_narrative(
+        llm_client, destination, day_summaries, dietary_restrictions, rag_snippet
+    )
 
-    return all_items, day_summaries, "\n".join(lines)
+    return all_items, day_summaries, response_text

@@ -12,7 +12,8 @@ from fastapi import Depends
 from app.config import get_settings
 from app.database import get_db, init_db
 from app.models import GuardrailCheck
-from app import checks
+from app import checks, llm_judge
+from libs.llm.groq_client import GroqClient, LLMError
 
 structlog.configure(
     processors=[
@@ -36,6 +37,16 @@ settings = get_settings()
 async def lifespan(app: FastAPI):
     log.info("guardrail_service_startup", service=settings.service_name)
     await init_db()
+    # LLM-as-judge second pass for borderline injection cases (see
+    # check_input). Tests override app.state.llm_client with FakeGroqClient
+    # before the lifespan-created client would matter; if no key is
+    # configured here, borderline cases just fall back to the heuristic
+    # verdict rather than failing startup.
+    try:
+        app.state.llm_client = GroqClient()
+    except LLMError:
+        log.warning("groq_client_unavailable", reason="GROQ_API_KEY not set")
+        app.state.llm_client = None
     yield
     log.info("guardrail_service_shutdown", service=settings.service_name)
 
@@ -150,7 +161,7 @@ async def _log_check(db: AsyncSession, check_type: str, text: str, passed: bool,
 # exposed publicly; they are called service-to-service by the agent
 # gateway/support agent before/after LLM calls.
 @app.post("/guardrails/check-input", response_model=CheckInputResponse)
-async def check_input(body: CheckInputRequest, db: AsyncSession = Depends(get_db)):
+async def check_input(body: CheckInputRequest, request: Request, db: AsyncSession = Depends(get_db)):
     injection = checks.detect_injection(body.text)
     pii_found = checks.detect_pii(body.text)
     redacted_text, _ = checks.redact(body.text)
@@ -165,6 +176,20 @@ async def check_input(body: CheckInputRequest, db: AsyncSession = Depends(get_db
     # (raw PII must never be forwarded to an LLM prompt - see CLAUDE-level
     # security convention "never pass PII to LLM without redaction").
     blocked = injection["risk_score"] >= settings.injection_block_threshold or bool(pii_found)
+
+    # Borderline second pass: the heuristic scored *some* signal but not
+    # enough to auto-block, and there's no PII already forcing a block.
+    # Clear-cut allows (score 0) and clear-cut blocks (score >= threshold,
+    # or PII) never reach the LLM - only genuinely uncertain cases do.
+    borderline = 0 < injection["risk_score"] < settings.injection_block_threshold and not pii_found
+    llm_client = getattr(request.app.state, "llm_client", None)
+    if borderline and llm_client is not None:
+        try:
+            verdict = await llm_judge.judge_injection(llm_client, body.text, injection["matched_patterns"])
+            blocked = verdict["blocked"]
+            reasons.append(f"llm_judge:{verdict['category']}:{verdict['reason']}")
+        except LLMError as e:
+            log.warning("llm_judge_fallback", error=str(e), heuristic_verdict=blocked)
 
     await _log_check(
         db, "INPUT", body.text, passed=not blocked, risk_score=injection["risk_score"],
