@@ -172,15 +172,16 @@ sustained degradation.
 
 **4. Two pre-existing bugs in `scripts/seed_data.py` were found and fixed to make this test possible at all** (not part of the load test scope, but load-bearing for it): its module docstring opened with `""` instead of `"""` (a real `SyntaxError`, the script could not run at all), and its hardcoded `DATABASE_URL` pointed at `localhost:5433`, which is not this stack's postgres port (`docker-compose.yml` maps it to `5440`) — so a first "successful" run silently wrote to an unrelated/nonexistent database and the actual stack stayed empty. Both fixed with one-line changes; noting here since running the test at all first required discovering that the running stack had zero seeded data.
 
-## Chaos testing (pending)
+## Chaos testing
 
-No chaos-during-load run has been captured yet. `scripts/chaos_kill_broker.ps1`
-and `scripts/chaos_kill_consumer.ps1` exist (see `docs/runbooks.md` for what
-they do) but have not been executed as part of a load test in this session —
-the live docker-compose stack needed to stay untouched for a parallel process.
-Running one of them concurrently with a Locust run against 20 or 100 users is
-a separate, still-pending step. No numbers are included here to avoid
-fabricating a result that wasn't actually measured.
+A chaos-during-load run (Redpanda broker killed and restarted ~20s into a
+60s Locust run) is documented separately in `docs/load-chaos-results.md`,
+with exact timestamps and raw output in `scripts/loadtest/results_chaos_*.csv`
+and `chaos_locust.log`. Summary: zero visible request failures on any
+real user-facing path during the ~5s outage; the only failing endpoint
+(100%) is the pre-existing `GET /api/v1/events` trailing-slash bug (Finding
+1 above / `docs/runbooks.md` #2), reproduced identically with no broker
+outage involved, so it's not a chaos-induced regression.
 
 ## Overall assessment
 
