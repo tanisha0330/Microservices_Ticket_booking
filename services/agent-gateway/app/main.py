@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import redis.asyncio as aioredis
 import structlog
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
@@ -53,6 +54,16 @@ from libs.observability import add_security_headers, instrument_metrics, instrum
 instrument_metrics(app, settings.service_name)
 add_security_headers(app)
 instrument_tracing(app, settings.service_name)
+
+# Browser UI (services/ui) calls this on a different port than the main
+# gateway - needs its own CORS, same dev-only allow-all as services/gateway.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ---------------------------------------------------------------------------
