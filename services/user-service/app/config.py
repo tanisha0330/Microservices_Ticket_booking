@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
 
+    # Fernet key for encrypting PII columns (full_name, phone) at rest.
+    # Dev-only default below; must be a urlsafe-base64 32-byte key in prod.
+    fernet_key: str = "yl3INEiYtjgOsFwMfyvnqtMbucZQ3J0VdZXrz-tXP1M="
+
     service_name: str = "user-service"
 
     @property

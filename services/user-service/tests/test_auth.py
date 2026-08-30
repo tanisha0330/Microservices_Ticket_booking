@@ -2,6 +2,10 @@
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from app.models import User
 
 
 # ---------------------------------------------------------------------------
@@ -207,6 +211,30 @@ async def test_get_me_unauthenticated(client: AsyncClient):
     """GET /me without an Authorization header must return 401."""
     resp = await client.get("/me")
     assert resp.status_code == 401, resp.text
+
+
+@pytest.mark.asyncio
+async def test_pii_encrypted_at_rest(client: AsyncClient, test_user_data: dict, test_db_engine):
+    """full_name/phone must be stored as Fernet ciphertext, not plaintext."""
+    data = {**test_user_data, "email": "encrypted_at_rest@example.com"}
+    reg = await _register(client, data)
+    assert reg.status_code == 201
+
+    session_factory = async_sessionmaker(bind=test_db_engine, class_=AsyncSession)
+    async with session_factory() as session:
+        row = (
+            await session.execute(select(User).where(User.email == data["email"]))
+        ).scalar_one()
+        assert row.full_name != data["full_name"]
+        assert row.phone != data["phone"]
+
+    # And the API still returns the decrypted plaintext
+    access_token = reg.json()["access_token"]
+    resp = await client.get("/me", headers={"Authorization": f"Bearer {access_token}"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["full_name"] == data["full_name"]
+    assert body["phone"] == data["phone"]
 
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ from app.auth import (
     hash_token,
     verify_password,
 )
+from app.encryption import decrypt_field, encrypt_field
 from app.config import get_settings
 from app.database import get_db
 from app.models import RefreshToken, User
@@ -78,6 +79,18 @@ def _error(
                 "correlation_id": correlation_id,
             }
         },
+    )
+
+
+def _decrypted_profile(user: User) -> UserProfile:
+    """Build a UserProfile with full_name/phone decrypted for API output."""
+    return UserProfile(
+        id=user.id,
+        email=user.email,
+        full_name=decrypt_field(user.full_name),
+        phone=decrypt_field(user.phone) if user.phone is not None else None,
+        is_active=user.is_active,
+        created_at=user.created_at,
     )
 
 
@@ -189,8 +202,8 @@ async def register(
         id=uuid.uuid4(),
         email=payload.email,
         password_hash=hash_password(payload.password),
-        full_name=payload.full_name,
-        phone=payload.phone,
+        full_name=encrypt_field(payload.full_name),
+        phone=encrypt_field(payload.phone) if payload.phone is not None else None,
     )
     db.add(user)
     await db.flush()  # assign PK before creating the token
@@ -410,7 +423,7 @@ async def get_me(
 ):
     """Return the authenticated user's profile."""
     user = await _get_current_user_from_bearer(request, credentials, db)
-    return UserProfile.model_validate(user)
+    return _decrypted_profile(user)
 
 
 @router.patch(
@@ -432,10 +445,10 @@ async def update_me(
 
     updated = False
     if payload.full_name is not None:
-        user.full_name = payload.full_name
+        user.full_name = encrypt_field(payload.full_name)
         updated = True
     if payload.phone is not None:
-        user.phone = payload.phone
+        user.phone = encrypt_field(payload.phone)
         updated = True
 
     if updated:
@@ -443,4 +456,4 @@ async def update_me(
         db.add(user)
         log.info("user_profile_updated", user_id=str(user.id), correlation_id=cid)
 
-    return UserProfile.model_validate(user)
+    return _decrypted_profile(user)

@@ -31,8 +31,14 @@ class User(Base):
         nullable=False,
     )
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    # full_name and phone are stored Fernet-encrypted (see app/encryption.py) —
+    # 255 chars comfortably fits Fernet's base64 ciphertext overhead for both.
+    # ponytail: phone widened from String(50); same no-Alembic caveat as `role`
+    # below — an existing dev Postgres volume needs
+    #   ALTER TABLE users ALTER COLUMN phone TYPE VARCHAR(255);
+    # or `docker compose down -v` to pick this up.
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # 'customer' or 'admin'. Gates the one existing cross-user read
     # (booking-service's GET /users/{user_id}/bookings ownership check).
     # ponytail: no Alembic in this repo, create_all() never ALTERs existing
