@@ -65,12 +65,13 @@ def hash_token(token: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def create_access_token(user_id: uuid.UUID, email: str) -> str:
+def create_access_token(user_id: uuid.UUID, email: str, role: str = "customer") -> str:
     """Encode a short-lived JWT access token signed with HS256.
 
     Claims:
         sub  – stringified UUID of the user
         email – user's email address
+        role – 'customer' or 'admin'
         iat  – issued-at timestamp
         exp  – expiry timestamp (now + jwt_access_token_expire_minutes)
     """
@@ -79,6 +80,7 @@ def create_access_token(user_id: uuid.UUID, email: str) -> str:
     payload = {
         "sub": str(user_id),
         "email": email,
+        "role": role,
         "iat": now,
         "exp": expire,
     }

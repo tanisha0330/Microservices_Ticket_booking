@@ -33,6 +33,9 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # 'customer' or 'admin'. Gates the one existing cross-user read
+    # (booking-service's GET /users/{user_id}/bookings ownership check).
+    role: Mapped[str] = mapped_column(String(20), server_default="customer", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

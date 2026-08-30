@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.booking_service as svc
-from app.auth import get_current_user_id
+from app.auth import get_current_user_id, get_current_user_role
 from app.database import get_db
 from app.schemas import PaginatedBookings, BookingResponse
 
@@ -28,12 +28,14 @@ async def get_user_bookings_endpoint(
     user_id: uuid.UUID,
     request: Request,
     current_user_id: uuid.UUID = Depends(get_current_user_id),
+    current_user_role: str = Depends(get_current_user_role),
     db: AsyncSession = Depends(get_db),
     page: int = Query(default=1, ge=1, description="Page number (1-indexed)"),
     size: int = Query(default=20, ge=1, le=100, description="Items per page"),
 ):
-    # Users can only fetch their own bookings
-    if user_id != current_user_id:
+    # Users can only fetch their own bookings, unless the caller is an admin
+    # (e.g. support staff looking up a customer's booking history).
+    if user_id != current_user_id and current_user_role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={

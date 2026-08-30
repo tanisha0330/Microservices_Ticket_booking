@@ -83,3 +83,14 @@ async def get_current_user_id(
                 }
             },
         )
+
+
+async def get_current_user_role(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> str:
+    """FastAPI dependency – returns the authenticated user's role.
+
+    Defaults to 'customer' for tokens issued before the role claim existed.
+    """
+    payload = _decode_token(credentials.credentials)
+    return payload.get("role", "customer")

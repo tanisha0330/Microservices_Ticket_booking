@@ -199,7 +199,7 @@ async def register(
     raw_refresh, _ = await _create_and_persist_refresh_token(db, user.id)
 
     # Access token
-    access_token = create_access_token(user.id, user.email)
+    access_token = create_access_token(user.id, user.email, user.role)
     expires_in = settings.jwt_access_token_expire_minutes * 60
 
     log.info("user_registered", user_id=str(user.id), correlation_id=cid)
@@ -247,7 +247,7 @@ async def login(
         )
 
     raw_refresh, _ = await _create_and_persist_refresh_token(db, user.id)
-    access_token = create_access_token(user.id, user.email)
+    access_token = create_access_token(user.id, user.email, user.role)
     expires_in = settings.jwt_access_token_expire_minutes * 60
 
     log.info("user_logged_in", user_id=str(user.id), correlation_id=cid)
@@ -332,7 +332,7 @@ async def refresh_token(
     db_token.replaced_by_token_id = new_db_token.id
     db.add(db_token)
 
-    access_token = create_access_token(user.id, user.email)
+    access_token = create_access_token(user.id, user.email, user.role)
     expires_in = settings.jwt_access_token_expire_minutes * 60
 
     log.info(
