@@ -8,6 +8,7 @@ from typing import AsyncGenerator
 import structlog
 
 from app.config import get_settings
+from libs.resilience import retry_with_backoff
 
 log = structlog.get_logger()
 settings = get_settings()
@@ -51,10 +52,16 @@ async def init_db() -> None:
 
     Called once at application startup via the lifespan event.
     In production, prefer Alembic migrations over this approach.
+
+    Retries with backoff: on a cold docker-compose start, postgres may not
+    be ready yet when this container's single lifespan attempt runs.
     """
     # Import models so that Base.metadata is populated before create_all.
     import app.models  # noqa: F401
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    async def _connect_and_create() -> None:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    await retry_with_backoff(_connect_and_create)
     log.info("database_initialized", database=settings.postgres_db)

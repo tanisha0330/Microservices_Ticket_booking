@@ -316,6 +316,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: ticketflow_travel_planner
       RAG_SERVICE_URL: http://rag-service:8000
+      GROQ_API_KEY: ${GROQ_API_KEY}
     ports:
       - "8008:8000"
 
@@ -363,6 +364,7 @@ services:
       EVAL_SERVICE_URL: http://eval-service:8000
       TRAVEL_PLANNER_URL: http://travel-planner-agent:8000
       SUPPORT_AGENT_URL: http://support-agent:8000
+      GROQ_API_KEY: ${GROQ_API_KEY}
     ports:
       - "8007:8000"
 

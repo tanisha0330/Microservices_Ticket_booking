@@ -1,4 +1,4 @@
-""
+"""
 seed_data.py
 ============
 Idempotent seed script for the TicketFlow catalog database.
@@ -37,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 # ---------------------------------------------------------------------------
 
 DATABASE_URL = (
-    "postgresql+asyncpg://ticketflow:ticketflow123@localhost:5433/ticketflow_catalog"
+    "postgresql+asyncpg://ticketflow:ticketflow123@localhost:5440/ticketflow_catalog"
 )
 
 engine = create_async_engine(DATABASE_URL, echo=False, pool_pre_ping=True)

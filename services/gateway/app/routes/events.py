@@ -80,7 +80,11 @@ async def list_events(request: Request) -> Response:
     if limited:
         return limited
 
-    target = f"{settings.catalog_service_url}/events"
+    # Trailing slash required: catalog-service's router is mounted at
+    # prefix="/events" with the list route at "/", so a bare "/events"
+    # 307-redirects to catalog-service's internal Docker hostname, which
+    # the gateway's httpx client (no follow_redirects) can't reach externally.
+    target = f"{settings.catalog_service_url}/events/"
     correlation_id = getattr(request.state, "correlation_id", "")
     return await proxy_request(
         request,

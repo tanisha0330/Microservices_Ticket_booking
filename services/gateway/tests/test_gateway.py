@@ -193,7 +193,7 @@ async def test_protected_endpoint_valid_token(client_with_mocks):
     ac, mock_router = client_with_mocks
 
     s = _test_settings()
-    mock_router.get(f"{s.catalog_service_url}/events").mock(
+    mock_router.get(f"{s.catalog_service_url}/events/").mock(
         return_value=HttpxResponse(
             200,
             json={"items": [], "total": 0},
@@ -210,6 +210,32 @@ async def test_protected_endpoint_valid_token(client_with_mocks):
 
 
 @pytest.mark.asyncio
+async def test_events_proxy_uses_trailing_slash(client_with_mocks):
+    """
+    Regression test: the gateway must request catalog-service's /events/
+    (trailing slash), not /events. catalog-service's router is mounted at
+    prefix="/events" with the list route at "/", so a bare "/events" 307s to
+    catalog-service's internal Docker hostname, which the gateway's httpx
+    client (no follow_redirects) can't reach externally.
+    """
+    ac, mock_router = client_with_mocks
+    s = _test_settings()
+
+    # Only mock the trailing-slash URL. If the gateway regresses to a bare
+    # "/events" request, respx's AllMockedAssertionError fails this test.
+    mock_router.get(f"{s.catalog_service_url}/events/").mock(
+        return_value=HttpxResponse(200, json={"items": [], "total": 0})
+    )
+
+    token = make_valid_token()
+    resp = await ac.get(
+        "/api/v1/events/",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
 async def test_x_user_id_forwarded(client_with_mocks):
     """X-User-ID header must be injected with the token subject before proxying."""
     ac, mock_router = client_with_mocks
@@ -221,7 +247,7 @@ async def test_x_user_id_forwarded(client_with_mocks):
         captured_headers.update(dict(request.headers))
         return HttpxResponse(200, json={"items": [], "total": 0})
 
-    mock_router.get(f"{s.catalog_service_url}/events").mock(side_effect=capture)
+    mock_router.get(f"{s.catalog_service_url}/events/").mock(side_effect=capture)
 
     token = make_valid_token(user_id=TEST_USER_ID)
     await ac.get("/api/v1/events/", headers={"Authorization": f"Bearer {token}"})
@@ -274,7 +300,7 @@ async def test_user_rate_limit(client_with_mocks):
     ac, mock_router = client_with_mocks
     s = _test_settings()
 
-    mock_router.get(f"{s.catalog_service_url}/events").mock(
+    mock_router.get(f"{s.catalog_service_url}/events/").mock(
         return_value=HttpxResponse(200, json={"items": []})
     )
 

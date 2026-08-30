@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import DeclarativeBase
 
 from app.config import get_settings
+from libs.resilience import retry_with_backoff
 
 logger = structlog.get_logger(__name__)
 
@@ -45,9 +46,16 @@ async def get_db() -> AsyncSession:  # type: ignore[misc]
 
 
 async def init_db() -> None:
-    """Create all tables on startup (dev convenience; use Alembic in prod)."""
+    """Create all tables on startup (dev convenience; use Alembic in prod).
+
+    Retries with backoff: on a cold docker-compose start, postgres may not
+    be ready yet when this container's single lifespan attempt runs.
+    """
     from app import models  # noqa: F401 – ensure models are imported
 
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    async def _connect_and_create() -> None:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+
+    await retry_with_backoff(_connect_and_create)
     logger.info("database_initialized", service=settings.service_name)
