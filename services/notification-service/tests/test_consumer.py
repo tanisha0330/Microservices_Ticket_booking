@@ -6,8 +6,9 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from sqlalchemy import select
 
-from app.consumer import handle_envelope, process_message
+from app.consumer import DLQ_TOPIC, TOPIC, handle_envelope, process_message
 from app.models import Notification
+from libs.messaging import replay_dlq
 
 pytestmark = pytest.mark.asyncio
 
@@ -71,3 +72,38 @@ async def test_process_message_routes_to_dlq_after_max_retries(db_session):
         await process_message(producer, value, key)
 
     producer.send_and_wait.assert_awaited_once_with("booking.events.dlq", value=value, key=key)
+
+
+async def test_replay_dlq_republishes_to_main_topic():
+    """A message stuck on the DLQ must land back on the main topic when replayed."""
+    msg = AsyncMock()
+    msg.value = b'{"event_id": "abc"}'
+    msg.key = b"some-key"
+
+    consumer = AsyncMock()
+    consumer.getmany.side_effect = [{"partition-0": [msg]}, {}]
+
+    producer = AsyncMock()
+
+    replayed = await replay_dlq(consumer, producer, TOPIC)
+
+    assert replayed == 1
+    producer.send_and_wait.assert_awaited_once_with(TOPIC, value=msg.value, key=msg.key)
+    consumer.commit.assert_awaited_once()
+
+
+async def test_replay_dlq_respects_max_messages():
+    msgs = [AsyncMock(value=f"msg-{i}".encode(), key=None) for i in range(3)]
+    consumer = AsyncMock()
+    consumer.getmany.side_effect = [{"partition-0": msgs}]
+    producer = AsyncMock()
+
+    replayed = await replay_dlq(consumer, producer, TOPIC, max_messages=2)
+
+    assert replayed == 2
+    assert producer.send_and_wait.await_count == 2
+
+
+async def test_dlq_topic_constant_is_the_replay_target():
+    assert DLQ_TOPIC == "booking.events.dlq"
+    assert TOPIC == "booking.events"

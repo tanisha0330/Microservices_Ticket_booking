@@ -22,6 +22,12 @@ REQUEST_LATENCY = Histogram(
     ["service", "method", "path"],
 )
 
+DLQ_MESSAGES = Counter(
+    "dlq_messages_total",
+    "Messages routed to a dead-letter topic after exhausting retries",
+    ["service", "topic"],
+)
+
 
 def instrument_metrics(app: FastAPI, service_name: str) -> None:
     """Add a request-timing middleware and a /metrics scrape endpoint."""

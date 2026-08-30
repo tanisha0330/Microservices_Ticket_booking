@@ -9,6 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from app.config import get_settings
 from app.database import async_session_factory
 from app.models import BookingEventCount, ProcessedEvent
+from libs.observability import DLQ_MESSAGES
 
 log = structlog.get_logger()
 settings = get_settings()
@@ -73,6 +74,7 @@ async def process_message(producer, value: bytes, key: bytes | None) -> None:
             )
             if attempt >= settings.kafka_max_retries:
                 await producer.send_and_wait(DLQ_TOPIC, value=value, key=key)
+                DLQ_MESSAGES.labels(service=settings.service_name, topic=DLQ_TOPIC).inc()
                 log.error("analytics_event_dlq", event_id=envelope.get("event_id"))
                 return
             await asyncio.sleep(0.5 * attempt)
