@@ -145,6 +145,30 @@ async def test_confirm_booking_payment_failure_releases_seats(client):
     assert retry.status_code == 201
 
 
+async def test_confirm_booking_lock_renewal_failure_expires_booking(client, monkeypatch):
+    from app.lock_manager import LockManager
+
+    user_id = uuid.uuid4()
+    lock_resp = await client.post(
+        "/bookings/lock", json=_lock_body(), headers=auth_headers(user_id)
+    )
+    booking_id = lock_resp.json()["id"]
+
+    monkeypatch.setattr(
+        LockManager, "extend_lock_ttl", AsyncMock(return_value=False)
+    )
+
+    with patch("app.booking_service.httpx.AsyncClient") as mock_client_cls:
+        resp = await client.post(
+            f"/bookings/{booking_id}/confirm",
+            json={"payment_method": "tok_visa"},
+            headers=auth_headers(user_id),
+        )
+    assert resp.status_code == 409
+    assert resp.json()["error"]["code"] == "BOOKING_EXPIRED"
+    mock_client_cls.assert_not_called()
+
+
 async def test_release_booking(client):
     user_id = uuid.uuid4()
     lock_resp = await client.post(

@@ -327,13 +327,44 @@ async def confirm_booking(
 
     seat_ids = [s.seat_id for s in booking.seats]
 
-    # Extend TTL so locks survive payment processing
-    await lock_manager.extend_lock_ttl(
+    # Extend TTL so locks survive payment processing. A failed extend means
+    # at least one seat lock already expired (EXPIRE on a missing key
+    # returns 0) — nothing to retry, so abort before contacting payment.
+    renewed = await lock_manager.extend_lock_ttl(
         event_id=booking.event_id,
         seat_ids=seat_ids,
         user_id=user_id,
         new_ttl=settings.seat_lock_ttl_seconds + 120,
     )
+    if not renewed:
+        await lock_manager.release_seats(
+            event_id=booking.event_id,
+            seat_ids=seat_ids,
+            user_id=user_id,
+        )
+        booking.status = "EXPIRED"
+        booking.updated_at = _now()
+        db.add(
+            OutboxEvent(
+                id=uuid.uuid4(),
+                event_type="BOOKING_EXPIRED",
+                payload={
+                    **_booking_payload(booking),
+                    "expired_at": booking.updated_at.isoformat(),
+                },
+            )
+        )
+        await db.flush()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": {
+                    "code": "BOOKING_EXPIRED",
+                    "message": "Seat lock has expired; please start a new booking",
+                    "details": {},
+                }
+            },
+        )
 
     # ----- Payment service calls -----
     idempotency_key = str(booking.id)
