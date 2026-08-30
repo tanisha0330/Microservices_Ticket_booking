@@ -136,6 +136,28 @@ async def test_refresh_token_reuse_fails(client: AsyncClient, test_user_data: di
     assert code in ("REFRESH_TOKEN_REUSE", "INVALID_REFRESH_TOKEN")
 
 
+@pytest.mark.asyncio
+async def test_refresh_token_reuse_revokes_family(client: AsyncClient, test_user_data: dict):
+    """Reuse of a rotated-out token must revoke the whole family, not just itself."""
+    data = {**test_user_data, "email": "reuse_family@example.com"}
+    reg = await _register(client, data)
+    assert reg.status_code == 201
+    token_a = reg.json()["refresh_token"]
+
+    # A -> B (A revoked)
+    first = await client.post("/refresh", json={"refresh_token": token_a})
+    assert first.status_code == 200, first.text
+    token_b = first.json()["refresh_token"]
+
+    # Reuse A -> triggers reuse detection, should revoke B too
+    reuse = await client.post("/refresh", json={"refresh_token": token_a})
+    assert reuse.status_code == 401, reuse.text
+
+    # B must now also be rejected, even though it was never reused itself
+    second = await client.post("/refresh", json={"refresh_token": token_b})
+    assert second.status_code == 401, second.text
+
+
 # ---------------------------------------------------------------------------
 # Logout tests
 # ---------------------------------------------------------------------------

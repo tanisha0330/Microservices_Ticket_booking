@@ -35,6 +35,10 @@ class User(Base):
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     # 'customer' or 'admin'. Gates the one existing cross-user read
     # (booking-service's GET /users/{user_id}/bookings ownership check).
+    # ponytail: no Alembic in this repo, create_all() never ALTERs existing
+    # tables — an existing dev Postgres volume won't gain this column.
+    # Recreate it (docker compose down -v) or run manually:
+    #   ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'customer';
     role: Mapped[str] = mapped_column(String(20), server_default="customer", nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

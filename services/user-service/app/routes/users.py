@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import (
@@ -298,6 +298,17 @@ async def refresh_token(
             user_id=str(db_token.user_id),
             correlation_id=cid,
         )
+        await db.execute(
+            update(RefreshToken)
+            .where(
+                RefreshToken.user_id == db_token.user_id,
+                RefreshToken.revoked_at.is_(None),
+            )
+            .values(revoked_at=now)
+        )
+        # get_db only commits on the success path; this route raises next,
+        # so commit explicitly or the revocation above is rolled back.
+        await db.commit()
         raise _error(
             status.HTTP_401_UNAUTHORIZED,
             "REFRESH_TOKEN_REUSE",
