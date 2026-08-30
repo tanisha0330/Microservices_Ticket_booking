@@ -58,12 +58,15 @@ async def db_session(test_engine, test_session_factory) -> AsyncGenerator[AsyncS
 async def client(db_session) -> AsyncGenerator[AsyncClient, None]:
     """HTTP client wired to the FastAPI app with the test DB session."""
     from app.main import app
+    from libs.security import internal_headers
 
     async def _override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=internal_headers()
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()

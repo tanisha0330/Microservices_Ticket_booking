@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.database import Base, get_db
 from app.main import app
+from libs.security import internal_headers
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -71,6 +72,8 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     app.dependency_overrides[get_db] = _override_get_db
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=internal_headers()
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()

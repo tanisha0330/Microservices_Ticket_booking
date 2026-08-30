@@ -18,6 +18,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
+from libs.security import internal_headers
 from app.main import app
 from app.mock_provider import MockPaymentProvider, PaymentOutcome, PaymentResult
 from tests.conftest import unique_idempotency_key
@@ -453,7 +454,9 @@ async def race_client():
 
     app.dependency_overrides[get_db] = _override_get_db
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers=internal_headers()
+    ) as ac:
         yield ac
     app.dependency_overrides.clear()
     await engine.dispose()
