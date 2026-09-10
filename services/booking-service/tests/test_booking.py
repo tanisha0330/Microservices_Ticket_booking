@@ -55,7 +55,7 @@ async def test_lock_seats_success(client):
 
 async def test_lock_seats_no_token(client):
     resp = await client.post("/bookings/lock", json=_lock_body())
-    assert resp.status_code == 403  # HTTPBearer auto_error rejects missing header
+    assert resp.status_code == 401  # HTTPBearer auto_error rejects missing header
 
 
 async def test_lock_seats_too_many_seats(client):
